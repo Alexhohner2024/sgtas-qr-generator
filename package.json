@@ -7,11 +7,11 @@
     "start": "node index.js",
     "dev": "nodemon index.js",
     "test": "node test.js",
-    "build": "echo 'Build completed'"
+    "build": "echo 'Build completed'",
+    "postinstall": "npx playwright install --with-deps chromium"
   },
   "dependencies": {
     "express": "^4.21.2",
-    "playwright-aws-lambda": "^0.10.0",
     "playwright-core": "^1.40.0"
   },
   "devDependencies": {
