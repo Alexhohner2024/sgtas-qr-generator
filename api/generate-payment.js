@@ -1,19 +1,10 @@
-const puppeteer = require('puppeteer');
+const playwright = require('playwright-aws-lambda');
 
 // Функция для генерации платёжной ссылки
 async function generatePaymentLink(data) {
   console.log('Запуск генерации ссылки...');
-  const browser = await puppeteer.launch({
-    headless: 'new',
-    args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
-      '--disable-gpu',
-      '--no-first-run',
-      '--no-zygote',
-      '--single-process'
-    ]
+  const browser = await playwright.launchChromium({
+    headless: true
   });
 
   try {
@@ -21,7 +12,7 @@ async function generatePaymentLink(data) {
     console.log('Открытие страницы...');
     
     await page.goto('https://client.sgtas.ua/pay_qr/genarate', {
-      waitUntil: 'networkidle0'
+      waitUntil: 'networkidle'
     });
 
     await page.waitForSelector('.select2-selection__rendered', { timeout: 10000 });
@@ -29,14 +20,14 @@ async function generatePaymentLink(data) {
     await page.waitForTimeout(2000);
 
     await page.waitForSelector('.select2-results__option', { timeout: 10000 });
-    await page.select('#accountSelect', '66');
+    await page.selectOption('#accountSelect', '66');
 
     console.log('Заполнение данных формы...');
-    await page.type('#agentCode', '66-5290300001');
-    await page.type('#ipn', data.ipn);
-    await page.type('#policy_series', 'ЕР');
-    await page.type('#policy_number', data.policy_number);
-    await page.type('#sum', data.amount);
+    await page.fill('#agentCode', '66-5290300001');
+    await page.fill('#ipn', data.ipn);
+    await page.fill('#policy_series', 'ЕР');
+    await page.fill('#policy_number', data.policy_number);
+    await page.fill('#sum', data.amount);
 
     await page.click('#createQrCodeBtn');
 
