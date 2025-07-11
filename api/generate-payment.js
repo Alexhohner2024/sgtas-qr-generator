@@ -1,18 +1,18 @@
-const playwright = require('playwright-aws-lambda');
+const { chromium } = require('playwright-core');
 
-// Функция для генерации платёжной ссылки
 async function generatePaymentLink(data) {
   console.log('Запуск генерации ссылки...');
-  const browser = await playwright.launchChromium({
-    headless: true
+  const browser = await chromium.launch({
+    headless: true,
+    args: ['--no-sandbox', '--disable-setuid-sandbox'], // Необходимые флаги для Vercel
   });
 
   try {
     const page = await browser.newPage();
     console.log('Открытие страницы...');
-    
+
     await page.goto('https://client.sgtas.ua/pay_qr/genarate', {
-      waitUntil: 'networkidle'
+      waitUntil: 'networkidle',
     });
 
     await page.waitForSelector('.select2-selection__rendered', { timeout: 10000 });
@@ -43,14 +43,14 @@ async function generatePaymentLink(data) {
     return {
       success: true,
       payment_link: paymentLink,
-      data: data
+      data: data,
     };
 
   } catch (error) {
     console.error('Ошибка при генерации ссылки:', error);
     return {
       success: false,
-      error: error.message
+      error: error.message,
     };
   } finally {
     await browser.close();
@@ -69,14 +69,14 @@ export default async function handler(req, res) {
     if (!ipn || !policy_number || !amount) {
       return res.status(400).json({
         success: false,
-        error: 'Отсутствуют обязательные поля: ipn, policy_number, amount'
+        error: 'Отсутствуют обязательные поля: ipn, policy_number, amount',
       });
     }
 
     const result = await generatePaymentLink({
       ipn,
       policy_number,
-      amount
+      amount,
     });
 
     res.json(result);
@@ -85,7 +85,7 @@ export default async function handler(req, res) {
     console.error('Ошибка при генерации ссылки:', error);
     res.status(500).json({
       success: false,
-      error: error.message
+      error: error.message,
     });
   }
 }
