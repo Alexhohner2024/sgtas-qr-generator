@@ -11,12 +11,13 @@
   },
   "dependencies": {
     "express": "^4.21.2",
-    "puppeteer": "^21.7.0"
+    "puppeteer-core": "^21.7.0",
+    "@sparticuz/chromium": "^131.0.0"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"
   },
   "engines": {
-    "node": ">=16.0.0"
+    "node": ">=18.0.0"
   }
 }
