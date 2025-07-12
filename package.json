@@ -7,8 +7,7 @@
     "start": "node index.js",
     "dev": "nodemon index.js",
     "test": "node test.js",
-    "build": "echo 'Build completed'",
-    "postinstall": "npx playwright install --with-deps chromium"
+    "build": "echo 'Build completed'"
   },
   "dependencies": {
     "express": "^4.21.2",
