@@ -1,10 +1,9 @@
-// Updated for Vercel deployment
-const { chromium } = require('playwright-core');
+const puppeteer = require('puppeteer');
 
 async function generatePaymentLink(data) {
   console.log('Запуск генерации ссылки...');
   
-  const browser = await chromium.launch({
+  const browser = await puppeteer.launch({
     headless: true,
     args: [
       '--no-sandbox',
@@ -23,7 +22,7 @@ async function generatePaymentLink(data) {
     console.log('Открытие страницы...');
     
     await page.goto('https://client.sgtas.ua/pay_qr/genarate', {
-      waitUntil: 'networkidle',
+      waitUntil: 'networkidle0',
       timeout: 30000
     });
     
@@ -32,15 +31,18 @@ async function generatePaymentLink(data) {
     await page.waitForTimeout(2000);
     await page.waitForSelector('.select2-results__option', { timeout: 10000 });
     
-    // Используем правильный метод для Playwright
-    await page.selectOption('#accountSelect', '66');
+    // Выбираем опцию в select2
+    await page.evaluate(() => {
+      const option = document.querySelector('[data-select2-id="66"]');
+      if (option) option.click();
+    });
     
     console.log('Заполнение данных формы...');
-    await page.fill('#agentCode', '66-5290300001');
-    await page.fill('#ipn', data.ipn);
-    await page.fill('#policy_series', 'ЕР');
-    await page.fill('#policy_number', data.policy_number);
-    await page.fill('#sum', data.amount);
+    await page.type('#agentCode', '66-5290300001');
+    await page.type('#ipn', data.ipn);
+    await page.type('#policy_series', 'ЕР');
+    await page.type('#policy_number', data.policy_number);
+    await page.type('#sum', data.amount);
     
     await page.click('#createQrCodeBtn');
     
@@ -70,7 +72,7 @@ async function generatePaymentLink(data) {
   }
 }
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -101,4 +103,4 @@ export default async function handler(req, res) {
       error: error.message,
     });
   }
-}
+};
