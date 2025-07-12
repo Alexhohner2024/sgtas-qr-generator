@@ -1,3 +1,4 @@
+// Updated for Vercel deployment
 const { chromium } = require('playwright-core');
 
 async function generatePaymentLink(data) {
