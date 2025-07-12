@@ -10,5 +10,8 @@
       "source": "/(.*)",
       "destination": "/api/$1"
     }
-  ]
+  ],
+  "env": {
+    "PUPPETEER_SKIP_CHROMIUM_DOWNLOAD": "false"
+  }
 }
