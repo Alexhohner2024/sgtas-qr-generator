@@ -1,6 +1,9 @@
 const puppeteer = require('puppeteer-core');
 const chromium = require('@sparticuz/chromium');
 
+// Optimized for Vercel
+chromium.setGraphicsMode = false;
+
 async function generatePaymentLink(data) {
   console.log('Запуск генерации ссылки...');
   
@@ -13,10 +16,15 @@ async function generatePaymentLink(data) {
       '--disable-accelerated-2d-canvas',
       '--no-first-run',
       '--no-zygote',
-      '--single-process',
       '--disable-gpu',
       '--disable-web-security',
-      '--disable-features=VizDisplayCompositor'
+      '--disable-features=VizDisplayCompositor',
+      '--disable-extensions',
+      '--disable-plugins',
+      '--disable-images',
+      '--disable-javascript',
+      '--disable-default-apps',
+      '--disable-sync'
     ],
     defaultViewport: chromium.defaultViewport,
     executablePath: await chromium.executablePath(),
@@ -26,6 +34,10 @@ async function generatePaymentLink(data) {
   
   try {
     const page = await browser.newPage();
+    
+    // Enable JavaScript back for this page
+    await page.setJavaScriptEnabled(true);
+    
     console.log('Открытие страницы...');
     
     await page.goto('https://client.sgtas.ua/pay_qr/genarate', {
