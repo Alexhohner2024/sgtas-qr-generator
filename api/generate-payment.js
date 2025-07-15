@@ -1,42 +1,20 @@
 const puppeteer = require('puppeteer-core');
 const chromium = require('@sparticuz/chromium');
 
-// Optimized for Vercel
-chromium.setGraphicsMode = false;
-
 async function generatePaymentLink(data) {
   console.log('Запуск генерации ссылки...');
   
+  // Настройки для Vercel
   const browser = await puppeteer.launch({
-    args: [
-      ...chromium.args,
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
-      '--disable-accelerated-2d-canvas',
-      '--no-first-run',
-      '--no-zygote',
-      '--disable-gpu',
-      '--disable-web-security',
-      '--disable-features=VizDisplayCompositor',
-      '--disable-extensions',
-      '--disable-plugins',
-      '--disable-images',
-      '--disable-javascript',
-      '--disable-default-apps',
-      '--disable-sync'
-    ],
+    args: chromium.args,
     defaultViewport: chromium.defaultViewport,
-    executablePath: await chromium.executablePath(),
+    executablePath: await chromium.executablePath('/var/task/node_modules/@sparticuz/chromium/bin'),
     headless: chromium.headless,
     ignoreHTTPSErrors: true,
   });
   
   try {
     const page = await browser.newPage();
-    
-    // Enable JavaScript back for this page
-    await page.setJavaScriptEnabled(true);
     
     console.log('Открытие страницы...');
     
@@ -45,27 +23,37 @@ async function generatePaymentLink(data) {
       timeout: 30000
     });
     
-    await page.waitForSelector('.select2-selection__rendered', { timeout: 10000 });
-    await page.click('.select2-selection__rendered');
-    await page.waitForTimeout(2000);
-    await page.waitForSelector('.select2-results__option', { timeout: 10000 });
+    // Заполняем форму
+    await page.waitForSelector('select', { timeout: 10000 });
     
-    // Выбираем опцию в select2
-    await page.evaluate(() => {
-      const option = document.querySelector('[data-select2-id="66"]');
-      if (option) option.click();
-    });
+    // Выбираем отделение "Київ 2" (код 66)
+    await page.select('select', '66');
     
     console.log('Заполнение данных формы...');
+    
+    // Заполняем остальные поля
+    await page.waitForSelector('#agentCode', { timeout: 5000 });
     await page.type('#agentCode', '66-5290300001');
+    
+    await page.waitForSelector('#ipn', { timeout: 5000 });
     await page.type('#ipn', data.ipn);
+    
+    await page.waitForSelector('#policy_series', { timeout: 5000 });
     await page.type('#policy_series', 'ЕР');
+    
+    await page.waitForSelector('#policy_number', { timeout: 5000 });
     await page.type('#policy_number', data.policy_number);
+    
+    await page.waitForSelector('#sum', { timeout: 5000 });
     await page.type('#sum', data.amount);
     
+    // Нажимаем кнопку генерации
+    await page.waitForSelector('#createQrCodeBtn', { timeout: 5000 });
     await page.click('#createQrCodeBtn');
     
     console.log('Ждем генерацию ссылки...');
+    
+    // Ждем результат
     await page.waitForSelector('#encodedResult', { timeout: 15000 });
     
     const paymentLink = await page.evaluate(() => {
