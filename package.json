@@ -12,10 +12,13 @@
   "dependencies": {
     "express": "^4.21.2",
     "axios": "^1.6.0",
-    "cheerio": "^1.0.0-rc.12"
+    "cheerio": "^1.0.0-rc.12",
+    "puppeteer-core": "^19.7.2",
+    "@sparticuz/chromium": "^112.0.0"
   },
   "devDependencies": {
-    "nodemon": "^3.0.1"
+    "nodemon": "^3.0.1",
+    "puppeteer": "^22.6.5"
   },
   "engines": {
     "node": ">=18.0.0"
