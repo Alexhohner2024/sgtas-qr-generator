@@ -1,6 +1,19 @@
 const axios = require('axios');
 const cheerio = require('cheerio');
 
+// Функция создания описания платежа (аналог updateCombinedField())
+function createPaymentPurpose(data) {
+  const policySeries = 'ЕР';
+  const policyNumber = data.policy_number;
+  const ipn = data.ipn;
+  const code = '66'; // Київ 2
+
+  // Формат как на скриншоте: "Платіж за полісом ЕР—123456789; Платник: 1234567890; Код ОМ 66"
+  const combined = `Платіж за полісом ${policySeries}—${policyNumber}; Платник: ${ipn}; Код ОМ ${code}`;
+  
+  return combined;
+}
+
 // Функция кодирования данных формы (аналог encodeFormData())
 function encodeFormData(data) {
   // Создаем строку параметров
@@ -14,8 +27,8 @@ function encodeFormData(data) {
   params.append('number', data.policy_number);
   params.append('sum', data.amount);
   
-  // Дополнительные параметры которые могут потребоваться
-  params.append('purpose', 'Оплата страхового полиса');
+  // Добавляем сгенерированное описание платежа
+  params.append('purpose', createPaymentPurpose(data));
   
   return params.toString();
 }
@@ -28,7 +41,8 @@ function encodeFormDataBase64(data) {
     ipn: data.ipn,
     series: 'ЕР',
     number: data.policy_number,
-    sum: data.amount
+    sum: data.amount,
+    purpose: createPaymentPurpose(data)
   };
   
   // Пробуем Base64 кодирование
@@ -109,7 +123,8 @@ async function generatePaymentLink(data) {
         ipn: data.ipn,
         series: 'ЕР',
         number: data.policy_number,
-        sum: data.amount
+        sum: data.amount,
+        purpose: createPaymentPurpose(data)
       }))
     ];
     
