@@ -16,7 +16,8 @@ async function generatePaymentLink(data) {
   console.log('Генерируем платежную ссылку...');
   
   try {
-    const formData = {
+    // Создаем URL-encoded строку параметров
+    const params = new URLSearchParams({
       account: '66',
       agent: '66-5290300001',
       ipn: data.ipn,
@@ -24,14 +25,11 @@ async function generatePaymentLink(data) {
       number: data.policy_number,
       sum: data.amount,
       purpose: createPaymentPurpose(data)
-    };
+    });
     
-    const jsonString = JSON.stringify(formData);
-    const encodedData = Buffer.from(jsonString, 'utf8').toString('base64');
-    
-    // URL-encode для безопасной передачи в URL
-    const urlEncodedData = encodeURIComponent(encodedData);
-    const paymentLink = `https://client.sgtas.ua/pay_qr/pay/${urlEncodedData}`;
+    // Кодируем параметры в Base64
+    const encodedData = Buffer.from(params.toString(), 'utf8').toString('base64');
+    const paymentLink = `https://client.sgtas.ua/pay_qr/pay/${encodedData}`;
     
     console.log('Ссылка сгенерирована успешно');
     
