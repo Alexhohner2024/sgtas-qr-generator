@@ -1,196 +1,135 @@
 const axios = require('axios');
 const cheerio = require('cheerio');
 
-async function generatePaymentLink(data) {
-  console.log('Запуск генерации ссылки...');
-  
+async function findRealEndpoint() {
   try {
     const session = axios.create({
       timeout: 30000,
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'application/json, text/plain, */*',
-        'Accept-Language': 'uk-UA,uk;q=0.9,en;q=0.8',
-        'Content-Type': 'application/json',
-        'X-Requested-With': 'XMLHttpRequest'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
       }
     });
 
-    console.log('Загружаем страницу для получения токенов...');
+    console.log('Загружаем страницу...');
+    const response = await session.get('https://client.sgtas.ua/pay_qr/genarate');
+    const $ = cheerio.load(response.data);
     
-    // Сначала получаем страницу для извлечения токенов
-    const pageResponse = await session.get('https://client.sgtas.ua/pay_qr/genarate');
-    const $ = cheerio.load(pageResponse.data);
-    
-    // Извлекаем CSRF токен
-    const csrfToken = $('meta[name="csrf-token"]').attr('content') || 
-                      $('input[name="_token"]').val() || '';
-    
-    console.log('CSRF токен найден:', !!csrfToken);
-
-    // Обновляем заголовки с токеном
-    if (csrfToken) {
-      session.defaults.headers['X-CSRF-TOKEN'] = csrfToken;
-    }
-    
-    session.defaults.headers['Referer'] = 'https://client.sgtas.ua/pay_qr/genarate';
-    session.defaults.headers['Origin'] = 'https://client.sgtas.ua';
-
-    console.log('Подготавливаем данные...');
-
-    // Подготавливаем данные как JSON (современные формы часто используют JSON)
-    const requestData = {
-      accountSelect: '66', // Київ 2
-      agentCode: '66-5290300001',
-      ipn: data.ipn,
-      policy_series: 'ЕР',
-      policy_number: data.policy_number,
-      sum: data.amount,
-      _token: csrfToken
-    };
-
-    console.log('Отправляем на /pay_qr/pay/...');
-
-    // Пробуем отправить на найденный endpoint
-    let response;
+    // Загружаем site.js
+    console.log('Загружаем site.js...');
+    let siteJsContent = '';
     try {
-      response = await session.post('https://client.sgtas.ua/pay_qr/pay/', requestData);
+      const siteJsResponse = await session.get('https://client.sgtas.ua/js/site.js?v=hRQyftXiu1lLX2P9Ly9xa4gHJgLeR1uGN5qegUobtGo');
+      siteJsContent = siteJsResponse.data;
     } catch (error) {
-      if (error.response && error.response.status === 405) {
-        console.log('405 ошибка, пробуем другие методы...');
-        
-        // Пробуем как form-data
-        const formData = new URLSearchParams();
-        Object.entries(requestData).forEach(([key, value]) => {
-          formData.append(key, value);
-        });
-        
-        session.defaults.headers['Content-Type'] = 'application/x-www-form-urlencoded';
-        
-        try {
-          response = await session.post('https://client.sgtas.ua/pay_qr/pay/', formData);
-        } catch (error2) {
-          // Пробуем основной endpoint
-          response = await session.post('https://client.sgtas.ua/pay_qr/genarate', formData);
-        }
-      } else {
-        throw error;
-      }
+      console.log('Не удалось загрузить site.js');
     }
-
-    console.log('Ответ получен, статус:', response.status);
-
-    // Обрабатываем ответ
-    let result;
     
-    if (typeof response.data === 'string') {
-      // HTML ответ
-      const $result = cheerio.load(response.data);
-      
-      // Ищем ссылку в HTML
-      let paymentLink = null;
-      const selectors = [
-        '#encodedResult',
-        'a[href*="pay"]',
-        'input[value*="http"]',
-        'textarea',
-        '[data-payment-link]'
-      ];
-      
-      for (const selector of selectors) {
-        const element = $result(selector);
-        if (element.length > 0) {
-          paymentLink = element.attr('href') || element.val() || element.text().trim();
-          if (paymentLink && paymentLink.startsWith('http')) {
-            break;
-          }
+    // Извлекаем весь JavaScript код
+    const allScripts = [];
+    $('script:not([src])').each((i, script) => {
+      allScripts.push($(script).html());
+    });
+    
+    const allCode = response.data + '\n' + siteJsContent + '\n' + allScripts.join('\n');
+    
+    // Ищем все возможные endpoints
+    const endpoints = [];
+    
+    // Паттерны поиска
+    const patterns = [
+      // AJAX вызовы
+      /\$\.ajax\s*\(\s*\{[^}]*url\s*:\s*['"`]([^'"`]+)['"`]/g,
+      /\$\.post\s*\(\s*['"`]([^'"`]+)['"`]/g,
+      /\$\.get\s*\(\s*['"`]([^'"`]+)['"`]/g,
+      // Fetch вызовы
+      /fetch\s*\(\s*['"`]([^'"`]+)['"`]/g,
+      // Axios вызовы
+      /axios\s*\.\s*post\s*\(\s*['"`]([^'"`]+)['"`]/g,
+      // Form action
+      /action\s*=\s*['"`]([^'"`]+)['"`]/g,
+      // URL в переменных
+      /(?:url|endpoint|action)\s*[:=]\s*['"`]([^'"`]+)['"`]/g,
+      // Любые URL начинающиеся с /
+      /['"`](\/[a-zA-Z0-9_\-\/]*(?:generate|create|submit|send|pay)[a-zA-Z0-9_\-\/]*)['"`]/g
+    ];
+    
+    patterns.forEach(pattern => {
+      let match;
+      while ((match = pattern.exec(allCode)) !== null) {
+        const url = match[1];
+        if (url && url.startsWith('/') && !endpoints.includes(url)) {
+          endpoints.push(url);
         }
       }
-      
-      // Поиск в тексте
-      if (!paymentLink) {
-        const pageText = $result.text();
-        const urlMatch = pageText.match(/(https?:\/\/[^\s]+)/);
-        if (urlMatch) {
-          paymentLink = urlMatch[1];
+    });
+    
+    // Ищем обработчики кнопки #createQrCodeBtn
+    const buttonHandlers = [];
+    const buttonPatterns = [
+      /#createQrCodeBtn[^}]*\{([^}]*)\}/g,
+      /createQrCodeBtn[^}]*click[^}]*\{([^}]*)\}/g,
+      /click[^}]*createQrCodeBtn[^}]*\{([^}]*)\}/g
+    ];
+    
+    buttonPatterns.forEach(pattern => {
+      let match;
+      while ((match = pattern.exec(allCode)) !== null) {
+        buttonHandlers.push(match[1]);
+      }
+    });
+    
+    // Анализируем form элемент детально
+    const form = $('form#form, form').first();
+    const formData = {
+      id: form.attr('id'),
+      action: form.attr('action') || 'нет action',
+      method: form.attr('method') || 'нет method',
+      onsubmit: form.attr('onsubmit')
+    };
+    
+    // Ищем все routes в коде
+    const routes = [];
+    const routePatterns = [
+      /Route::[a-zA-Z]+\s*\(\s*['"`]([^'"`]+)['"`]/g,
+      /route\s*\(\s*['"`]([^'"`]+)['"`]/g,
+      /url\s*\(\s*['"`]([^'"`]+)['"`]/g
+    ];
+    
+    routePatterns.forEach(pattern => {
+      let match;
+      while ((match = pattern.exec(allCode)) !== null) {
+        routes.push(match[1]);
+      }
+    });
+    
+    return {
+      success: true,
+      data: {
+        form: formData,
+        endpoints: [...new Set(endpoints)],
+        buttonHandlers: buttonHandlers,
+        routes: [...new Set(routes)],
+        siteJsSize: siteJsContent.length,
+        hasJQuery: allCode.includes('jquery') || allCode.includes('jQuery'),
+        hasAjax: allCode.includes('ajax') || allCode.includes('$.post') || allCode.includes('$.get'),
+        hasFetch: allCode.includes('fetch('),
+        codeSnippets: {
+          createQrCodeBtn: allCode.includes('createQrCodeBtn') ? 
+            allCode.substring(allCode.indexOf('createQrCodeBtn') - 100, allCode.indexOf('createQrCodeBtn') + 200) : 
+            'Не найдено'
         }
       }
-      
-      result = paymentLink ? {
-        success: true,
-        payment_link: paymentLink,
-        data: data,
-        method: 'html_parse'
-      } : {
-        success: false,
-        error: 'Ссылка не найдена в HTML ответе',
-        debug: {
-          responseLength: response.data.length,
-          hasEncodedResult: $result('#encodedResult').length > 0,
-          title: $result('title').text()
-        }
-      };
-      
-    } else {
-      // JSON ответ
-      result = response.data.payment_link ? {
-        success: true,
-        payment_link: response.data.payment_link,
-        data: data,
-        method: 'json_response'
-      } : {
-        success: false,
-        error: 'Ссылка не найдена в JSON ответе',
-        debug: response.data
-      };
-    }
-
-    return result;
-
+    };
+    
   } catch (error) {
-    console.error('Ошибка:', error.message);
     return {
       success: false,
-      error: error.message,
-      details: error.response ? {
-        status: error.response.status,
-        statusText: error.response.statusText,
-        data: typeof error.response.data === 'string' ? 
-              error.response.data.substring(0, 500) : error.response.data
-      } : null
+      error: error.message
     };
   }
 }
 
 module.exports = async function handler(req, res) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
-  
-  try {
-    console.log('Получен запрос на генерацию платежной ссылки');
-    const { ipn, policy_number, amount } = req.body;
-    
-    if (!ipn || !policy_number || !amount) {
-      return res.status(400).json({
-        success: false,
-        error: 'Отсутствуют обязательные поля: ipn, policy_number, amount',
-      });
-    }
-    
-    const result = await generatePaymentLink({
-      ipn,
-      policy_number,
-      amount,
-    });
-    
-    res.json(result);
-    
-  } catch (error) {
-    console.error('Ошибка при генерации ссылки:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-    });
-  }
+  const result = await findRealEndpoint();
+  res.json(result);
 };
