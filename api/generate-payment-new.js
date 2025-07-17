@@ -29,9 +29,9 @@ async function generatePaymentLink(data) {
     const jsonString = JSON.stringify(formData);
     const encodedData = Buffer.from(jsonString, 'utf8').toString('base64');
     
-    // Убираем символы = в конце Base64
-    const cleanEncodedData = encodedData.replace(/=/g, '');
-    const paymentLink = `https://client.sgtas.ua/pay_qr/pay/${cleanEncodedData}`;
+    // URL-encode для безопасной передачи в URL
+    const urlEncodedData = encodeURIComponent(encodedData);
+    const paymentLink = `https://client.sgtas.ua/pay_qr/pay/${urlEncodedData}`;
     
     console.log('Ссылка сгенерирована успешно');
     
