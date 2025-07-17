@@ -109,14 +109,14 @@ async function generatePaymentLink(data) {
       account: '66',
       agent: '66-5290300001',
       ipn: data.ipn,
-      series: 'ЕР',
+      series: 'EP', // Латиница вместо кириллицы
       number: data.policy_number,
       sum: data.amount,
-      purpose: createPaymentPurpose(data)
+      purpose: `Platizh za polisom EP-${data.policy_number}; Platnik: ${data.ipn}; Kod OM 66` // Латиница
     };
     
     const jsonString = JSON.stringify(formData);
-    const encodedData = Buffer.from(jsonString).toString('base64');
+    const encodedData = Buffer.from(jsonString, 'utf8').toString('base64');
     const paymentLink = `https://client.sgtas.ua/pay_qr/pay/${encodedData}`;
     
     console.log('Ссылка сгенерирована успешно');
@@ -126,7 +126,7 @@ async function generatePaymentLink(data) {
       payment_link: paymentLink,
       data: data,
       encoding_method: 'Base64',
-      purpose: createPaymentPurpose(data)
+      purpose: formData.purpose
     };
     
   } catch (error) {
