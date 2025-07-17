@@ -104,97 +104,29 @@ async function generatePaymentLink(data) {
   console.log('Генерируем платежную ссылку...');
   
   try {
-    // Пытаемся извлечь настоящую функцию кодирования
-    const realEncodeFunction = await extractEncodeFunction();
-    console.log('Настоящая функция найдена:', !!realEncodeFunction);
+    // Используем проверенный Base64 метод сразу
+    const formData = {
+      account: '66',
+      agent: '66-5290300001',
+      ipn: data.ipn,
+      series: 'ЕР',
+      number: data.policy_number,
+      sum: data.amount,
+      purpose: createPaymentPurpose(data)
+    };
     
-    // Пробуем разные варианты кодирования
-    const encodingVariants = [
-      encodeFormData(data),
-      encodeFormDataBase64(data),
-      // Простое кодирование без параметров
-      `${data.ipn}/${data.policy_number}/${data.amount}`,
-      // С серией
-      `ЕР/${data.policy_number}/${data.ipn}/${data.amount}`,
-      // URL encode
-      encodeURIComponent(JSON.stringify({
-        account: '66',
-        agent: '66-5290300001',
-        ipn: data.ipn,
-        series: 'ЕР',
-        number: data.policy_number,
-        sum: data.amount,
-        purpose: createPaymentPurpose(data)
-      }))
-    ];
+    const jsonString = JSON.stringify(formData);
+    const encodedData = Buffer.from(jsonString).toString('base64');
+    const paymentLink = `https://client.sgtas.ua/pay_qr/pay/${encodedData}`;
     
-    const baseUrl = 'https://client.sgtas.ua/pay_qr/pay/';
-    const results = [];
-    
-    // Тестируем каждый вариант
-    for (let i = 0; i < encodingVariants.length; i++) {
-      const encodedData = encodingVariants[i];
-      const testUrl = baseUrl + encodedData;
-      
-      try {
-        console.log(`Тестируем вариант ${i + 1}:`, testUrl.substring(0, 100) + '...');
-        
-        const session = axios.create({
-          timeout: 10000,
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-          }
-        });
-        
-        const testResponse = await session.get(testUrl);
-        
-        if (testResponse.status === 200 && testResponse.data.length > 100) {
-          // Проверяем, содержит ли ответ QR код или платежную информацию
-          const $ = cheerio.load(testResponse.data);
-          const hasPaymentContent = $('body').text().toLowerCase().includes('оплата') || 
-                                   $('body').text().toLowerCase().includes('платіж') ||
-                                   $('body').text().toLowerCase().includes('qr') ||
-                                   $('img').length > 0;
-          
-          results.push({
-            variant: i + 1,
-            url: testUrl,
-            status: testResponse.status,
-            hasContent: hasPaymentContent,
-            contentLength: testResponse.data.length,
-            title: $('title').text().trim()
-          });
-          
-          if (hasPaymentContent) {
-            console.log(`Вариант ${i + 1} работает!`);
-            return {
-              success: true,
-              payment_link: testUrl,
-              data: data,
-              variant_used: i + 1,
-              encoding_method: ['URLSearchParams', 'Base64', 'Simple', 'WithSeries', 'URLEncode'][i]
-            };
-          }
-        }
-        
-      } catch (error) {
-        console.log(`Вариант ${i + 1} не работает:`, error.message);
-        results.push({
-          variant: i + 1,
-          error: error.message,
-          status: error.response ? error.response.status : 'network_error'
-        });
-      }
-    }
+    console.log('Ссылка сгенерирована успешно');
     
     return {
-      success: false,
-      error: 'Ни один вариант кодирования не сработал',
-      debug: {
-        realEncodeFunction: realEncodeFunction,
-        testedVariants: results,
-        baseUrl: baseUrl
-      }
+      success: true,
+      payment_link: paymentLink,
+      data: data,
+      encoding_method: 'Base64',
+      purpose: createPaymentPurpose(data)
     };
     
   } catch (error) {
