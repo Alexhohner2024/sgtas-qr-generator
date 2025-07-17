@@ -1,138 +1,148 @@
 const axios = require('axios');
 const cheerio = require('cheerio');
 
-async function analyzeForm() {
-  console.log('Анализируем форму на сайте...');
-  
+async function extractJavaScript() {
   try {
     const session = axios.create({
       timeout: 30000,
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'uk-UA,uk;q=0.9,en;q=0.8',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
       }
     });
 
+    // Загружаем главную страницу
     console.log('Загружаем страницу...');
     const response = await session.get('https://client.sgtas.ua/pay_qr/genarate');
     const $ = cheerio.load(response.data);
     
-    // Анализируем форму
-    const forms = [];
-    $('form').each((i, form) => {
-      const $form = $(form);
-      forms.push({
-        action: $form.attr('action'),
-        method: $form.attr('method'),
-        id: $form.attr('id'),
-        class: $form.attr('class')
-      });
+    // Извлекаем inline JavaScript
+    const inlineScripts = [];
+    $('script:not([src])').each((i, script) => {
+      const content = $(script).html();
+      if (content && content.trim()) {
+        inlineScripts.push(content);
+      }
     });
     
-    // Анализируем поля ввода
-    const inputs = [];
-    $('input, select, textarea').each((i, input) => {
-      const $input = $(input);
-      inputs.push({
-        type: $input.attr('type'),
-        name: $input.attr('name'),
-        id: $input.attr('id'),
-        class: $input.attr('class'),
-        placeholder: $input.attr('placeholder')
-      });
-    });
+    // Пытаемся загрузить site.js
+    let siteJsContent = null;
+    try {
+      const siteJsResponse = await session.get('https://client.sgtas.ua/js/site.js');
+      siteJsContent = siteJsResponse.data;
+    } catch (error) {
+      console.log('Не удалось загрузить site.js:', error.message);
+    }
     
-    // Ищем JavaScript код
-    const scripts = [];
-    $('script').each((i, script) => {
-      const $script = $(script);
-      const src = $script.attr('src');
-      const content = $script.html();
-      
-      if (src) {
-        scripts.push({ type: 'external', src });
-      } else if (content && (content.includes('ajax') || content.includes('fetch') || content.includes('submit'))) {
-        scripts.push({ 
-          type: 'inline', 
-          content: content.substring(0, 500) + (content.length > 500 ? '...' : '')
+    // Ищем упоминания form submit, ajax, fetch
+    const relevantCode = [];
+    
+    inlineScripts.forEach((script, index) => {
+      if (script.includes('submit') || 
+          script.includes('ajax') || 
+          script.includes('fetch') || 
+          script.includes('form') ||
+          script.includes('createQrCodeBtn') ||
+          script.includes('generate')) {
+        relevantCode.push({
+          type: 'inline',
+          index: index,
+          content: script.substring(0, 2000) + (script.length > 2000 ? '...' : '')
         });
       }
     });
     
-    // Ищем API endpoints
-    const apiEndpoints = [];
-    const allText = response.data;
-    const endpoints = allText.match(/\/api\/[\w\/\-]+/g) || [];
-    const ajaxUrls = allText.match(/url:\s*['"`]([^'"`]+)['"`]/g) || [];
+    if (siteJsContent) {
+      // Ищем функции отправки формы в site.js
+      const lines = siteJsContent.split('\n');
+      let currentFunction = '';
+      let inRelevantFunction = false;
+      
+      lines.forEach((line, lineNum) => {
+        if (line.includes('submit') || 
+            line.includes('ajax') || 
+            line.includes('form') ||
+            line.includes('createQrCodeBtn') ||
+            line.includes('generate') ||
+            line.includes('/pay_qr/')) {
+          inRelevantFunction = true;
+          currentFunction = '';
+        }
+        
+        if (inRelevantFunction) {
+          currentFunction += line + '\n';
+          
+          // Если функция закончилась
+          if (line.includes('}') && currentFunction.split('{').length <= currentFunction.split('}').length) {
+            relevantCode.push({
+              type: 'site.js',
+              lineNumber: lineNum,
+              content: currentFunction
+            });
+            inRelevantFunction = false;
+          }
+        }
+      });
+    }
     
-    endpoints.forEach(endpoint => apiEndpoints.push(endpoint));
-    ajaxUrls.forEach(url => {
-      const match = url.match(/url:\s*['"`]([^'"`]+)['"`]/);
-      if (match) apiEndpoints.push(match[1]);
+    // Ищем кнопки и их обработчики
+    const buttons = [];
+    $('button, input[type="submit"], input[type="button"]').each((i, btn) => {
+      const $btn = $(btn);
+      buttons.push({
+        id: $btn.attr('id'),
+        class: $btn.attr('class'),
+        onclick: $btn.attr('onclick'),
+        text: $btn.text().trim() || $btn.val()
+      });
     });
-
+    
+    // Ищем возможные endpoints в коде
+    const endpoints = [];
+    const allContent = response.data + (siteJsContent || '');
+    
+    // Паттерны для поиска URL
+    const urlPatterns = [
+      /['"`]\/[^'"`\s]+['"`]/g,
+      /url:\s*['"`]([^'"`]+)['"`]/g,
+      /action=['"`]([^'"`]+)['"`]/g,
+      /fetch\(['"`]([^'"`]+)['"`]/g,
+      /ajax.*url.*['"`]([^'"`]+)['"`]/g
+    ];
+    
+    urlPatterns.forEach(pattern => {
+      const matches = allContent.match(pattern) || [];
+      matches.forEach(match => {
+        const url = match.replace(/['"`]/g, '').replace(/url:\s*/, '').replace(/action=/, '');
+        if (url.startsWith('/') && !endpoints.includes(url)) {
+          endpoints.push(url);
+        }
+      });
+    });
+    
     return {
       success: true,
-      analysis: {
-        pageTitle: $('title').text().trim(),
-        forms: forms,
-        inputs: inputs.slice(0, 20), // Первые 20 полей
-        scripts: scripts.slice(0, 10), // Первые 10 скриптов
-        apiEndpoints: [...new Set(apiEndpoints)], // Уникальные endpoints
-        hasJQuery: allText.includes('jquery'),
-        hasAxios: allText.includes('axios'),
-        hasFetch: allText.includes('fetch('),
-        responseLength: response.data.length
+      data: {
+        relevantCode: relevantCode,
+        buttons: buttons,
+        possibleEndpoints: endpoints,
+        hasSiteJs: !!siteJsContent,
+        siteJsSize: siteJsContent ? siteJsContent.length : 0
       }
     };
     
   } catch (error) {
     return {
       success: false,
-      error: error.message,
-      details: error.response ? {
-        status: error.response.status,
-        statusText: error.response.statusText
-      } : null
+      error: error.message
     };
   }
 }
 
 module.exports = async function handler(req, res) {
   if (req.method === 'GET') {
-    // GET запрос для анализа формы
-    const result = await analyzeForm();
+    const result = await extractJavaScript();
     res.json(result);
-  } else if (req.method === 'POST') {
-    // POST запрос для тестирования
-    try {
-      const { ipn, policy_number, amount } = req.body;
-      
-      if (!ipn || !policy_number || !amount) {
-        return res.status(400).json({
-          success: false,
-          error: 'Отсутствуют обязательные поля: ipn, policy_number, amount',
-        });
-      }
-      
-      // Сначала анализируем форму
-      const analysis = await analyzeForm();
-      
-      res.json({
-        success: false,
-        message: 'Форма проанализирована. Нужно найти правильный endpoint для отправки.',
-        analysis: analysis.analysis,
-        providedData: { ipn, policy_number, amount }
-      });
-      
-    } catch (error) {
-      res.status(500).json({
-        success: false,
-        error: error.message,
-      });
-    }
   } else {
-    res.status(405).json({ error: 'Method not allowed' });
+    res.status(405).json({ error: 'Only GET method allowed' });
   }
 };
