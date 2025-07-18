@@ -7,6 +7,7 @@ function createPaymentPurpose(data) {
   const ipn = data.ipn;
   const code = '66'; // Київ 2
 
+  // Используем длинное тире (—) вместо обычного (-)
   const combined = `Платіж за полісом ${policySeries}—${policyNumber}; Платник: ${ipn}; Код ОМ ${code}`;
   
   return combined;
@@ -16,8 +17,8 @@ async function generatePaymentLink(data) {
   console.log('Генерируем платежную ссылку...');
   
   try {
-    // Создаем URL-encoded строку параметров
-    const params = new URLSearchParams({
+    // Формируем JSON объект как в рабочем примере
+    const formData = {
       account: '66',
       agent: '66-5290300001',
       ipn: data.ipn,
@@ -25,10 +26,12 @@ async function generatePaymentLink(data) {
       number: data.policy_number,
       sum: data.amount,
       purpose: createPaymentPurpose(data)
-    });
+    };
     
-    // Кодируем параметры в Base64
-    const encodedData = Buffer.from(params.toString(), 'utf8').toString('base64');
+    // Кодируем в Base64
+    const jsonString = JSON.stringify(formData);
+    const encodedData = Buffer.from(jsonString, 'utf8').toString('base64');
+    
     const paymentLink = `https://client.sgtas.ua/pay_qr/pay/${encodedData}`;
     
     console.log('Ссылка сгенерирована успешно');
