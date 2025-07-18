@@ -21,7 +21,7 @@ async function generatePaymentLink(data) {
     // Формируем JSON объект с правильной структурой (только 3 поля!)
     const formData = {
       account: '66',
-      sum: data.amount,
+      sum: String(data.amount), // Преобразуем в строку
       clientData: createPaymentPurpose(data)
     };
     
