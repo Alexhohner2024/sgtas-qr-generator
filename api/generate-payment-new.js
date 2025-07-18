@@ -33,10 +33,11 @@ async function generatePaymentLink(data) {
     const jsonString = JSON.stringify(formData);
     const encodedData = Buffer.from(jsonString, 'utf8').toString('base64');
     
-    // Убираем символы = в конце Base64
+    // Убираем символы = в конце Base64 и URL-encode
     const cleanEncodedData = encodedData.replace(/=+$/, '');
+    const urlSafeData = encodeURIComponent(cleanEncodedData);
     
-    const paymentLink = `https://client.sgtas.ua/pay_qr/pay/${cleanEncodedData}`;
+    const paymentLink = `https://client.sgtas.ua/pay_qr/pay/${urlSafeData}`;
     
     console.log('Ссылка сгенерирована успешно');
     
