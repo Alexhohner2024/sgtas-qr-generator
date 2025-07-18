@@ -18,21 +18,21 @@ async function generatePaymentLink(data) {
   console.log('Генерируем платежную ссылку...');
   
   try {
-    // Формируем JSON объект как в рабочем примере
+    // Формируем JSON объект с правильной структурой (только 3 поля!)
     const formData = {
       account: '66',
-      agent: '66-5290300001',
-      ipn: data.ipn,
-      series: 'ЕР',
-      number: data.policy_number,
       sum: data.amount,
-      purpose: createPaymentPurpose(data)
+      clientData: createPaymentPurpose(data)
     };
     
     // Кодируем в Base64
     const jsonString = JSON.stringify(formData);
     const encodedData = Buffer.from(jsonString, 'utf8').toString('base64');
     
+    // Убираем символы = в конце Base64
+    const cleanEncodedData = encodedData.replace(/=+$/, '');
+    
+    const paymentLink = `https://client.sgtas.ua/pay_qr/pay/${cleanEncodedData}`;
     // Убираем символы = в конце Base64 и URL-encode
     const cleanEncodedData = encodedData.replace(/=+$/, '');
     const urlSafeData = encodeURIComponent(cleanEncodedData);
