@@ -16,6 +16,7 @@ function createPaymentPurpose(data) {
 
 async function generatePaymentLink(data) {
   console.log('Генерируем платежную ссылку...');
+  console.log('Входные данные:', data);
   
   try {
     // Формируем JSON объект с правильной структурой (только 3 поля!)
@@ -25,6 +26,8 @@ async function generatePaymentLink(data) {
       clientData: createPaymentPurpose(data)
     };
     
+    console.log('formData:', JSON.stringify(formData));
+    
     // Кодируем в Base64
     const jsonString = JSON.stringify(formData);
     const encodedData = Buffer.from(jsonString, 'utf8').toString('base64');
@@ -33,11 +36,6 @@ async function generatePaymentLink(data) {
     const cleanEncodedData = encodedData.replace(/=+$/, '');
     
     const paymentLink = `https://client.sgtas.ua/pay_qr/pay/${cleanEncodedData}`;
-    // Убираем символы = в конце Base64 и URL-encode
-    const cleanEncodedData = encodedData.replace(/=+$/, '');
-    const urlSafeData = encodeURIComponent(cleanEncodedData);
-    
-    const paymentLink = `https://client.sgtas.ua/pay_qr/pay/${urlSafeData}`;
     
     console.log('Ссылка сгенерирована успешно');
     
@@ -46,11 +44,12 @@ async function generatePaymentLink(data) {
       payment_link: paymentLink,
       data: data,
       encoding_method: 'Base64',
-      purpose: createPaymentPurpose(data)
+      clientData: formData.clientData
     };
     
   } catch (error) {
-    console.error('Ошибка:', error.message);
+    console.error('Ошибка в generatePaymentLink:', error);
+    console.error('Stack:', error.stack);
     return {
       success: false,
       error: error.message
