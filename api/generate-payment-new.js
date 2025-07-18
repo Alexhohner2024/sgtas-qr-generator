@@ -7,8 +7,9 @@ function createPaymentPurpose(data) {
   const ipn = data.ipn;
   const code = '66'; // Київ 2
 
-  // Используем длинное тире (—) вместо обычного (-)
-  const combined = `Платіж за полісом ${policySeries}—${policyNumber}; Платник: ${ipn}; Код ОМ ${code}`;
+  // Используем Unicode символ для длинного тире
+  const longDash = '\u2014'; // Unicode для —
+  const combined = `Платіж за полісом ${policySeries}${longDash}${policyNumber}; Платник: ${ipn}; Код ОМ ${code}`;
   
   return combined;
 }
