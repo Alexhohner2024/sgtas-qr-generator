@@ -7,7 +7,6 @@ function createPaymentPurpose(data) {
   const ipn = data.ipn;
   const code = '66'; // Київ 2
 
-  // Используем Unicode символ для длинного тире
   const longDash = '\u2014'; // Unicode для —
   const combined = `Платіж за полісом ${policySeries}${longDash}${policyNumber}; Платник: ${ipn}; Код ОМ ${code}`;
   
@@ -19,20 +18,21 @@ async function generatePaymentLink(data) {
   console.log('Входные данные:', data);
   
   try {
-    // Формируем JSON объект с правильной структурой (только 3 поля!)
+    // Формируем JSON объект с правильной структурой
     const formData = {
       account: '66',
-      sum: String(data.amount), // Преобразуем в строку
+      sum: String(data.amount),
       clientData: createPaymentPurpose(data)
     };
     
     console.log('formData:', JSON.stringify(formData));
     
-    // Кодируем в Base64
+    // Правильное кодирование как в оригинале
     const jsonString = JSON.stringify(formData);
-    const encodedData = Buffer.from(jsonString, 'utf8').toString('base64');
+    const base64 = Buffer.from(jsonString, 'utf8').toString('base64');
+    const urlSafeBase64 = base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
     
-    const paymentLink = `https://client.sgtas.ua/pay_qr/pay/${encodedData}`;
+    const paymentLink = `https://client.sgtas.ua/pay_qr/pay/${urlSafeBase64}`;
     
     console.log('Ссылка сгенерирована успешно');
     
@@ -40,13 +40,12 @@ async function generatePaymentLink(data) {
       success: true,
       payment_link: paymentLink,
       data: data,
-      encoding_method: 'Base64',
+      encoding_method: 'Base64 URL-safe',
       clientData: formData.clientData
     };
     
   } catch (error) {
     console.error('Ошибка в generatePaymentLink:', error);
-    console.error('Stack:', error.stack);
     return {
       success: false,
       error: error.message
